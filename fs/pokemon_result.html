@@ -1,0 +1,159 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <title>Pokémon Analysis Results</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #ff3c00;
+            text-align: center;
+        }
+        .trainer-info {
+            background-color: #f5f5f5;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .pokemon-party {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+        .pokemon-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px;
+            width: 200px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .pokemon-card h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .pokemon-card ul {
+            padding-left: 20px;
+        }
+        .navigation {
+            margin-top: 30px;
+            text-align: center;
+        }
+        .navigation a {
+            padding: 10px 15px;
+            background-color: #ff3c00;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 0 10px;
+        }
+        .navigation a:hover {
+            background-color: #d43300;
+        }
+        .error-message {
+            text-align: center;
+            color: #d43300;
+            font-weight: bold;
+            padding: 20px;
+            background-color: #ffeeee;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .note {
+            background-color: #e6f7ff;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pokémon Save File Analysis</h1>
+    
+    <div class="note">
+        <p>Showing Pokémon party data from your save file. If you don't see your data, try re-uploading the file.</p>
+    </div>
+    
+    <div id="results">
+        <div class="trainer-info">
+            <h2>Trainer: ASH</h2>
+            <p>Game: Generation 1 (Red/Blue/Yellow)</p>
+            <p>Money: $3500</p>
+            <p>Badges: 3 badges</p>
+            <p>Play Time: 10:30:00</p>
+        </div>
+        
+        <h2>Party Pokémon (3)</h2>
+        <div class="pokemon-party">
+            <div class="pokemon-card">
+                <h3>Pikachu</h3>
+                <p>Nickname: PIKA</p>
+                <p>Level: 25</p>
+                <p>HP: 65/65</p>
+                <p>Attack: 55</p>
+                <p>Defense: 40</p>
+                <p>Speed: 90</p>
+                <p>Special Attack: 50</p>
+                <p>Moves:</p>
+                <ul>
+                    <li>Thunderbolt (PP: 15)</li>
+                    <li>Quick Attack (PP: 30)</li>
+                    <li>Thunder Wave (PP: 20)</li>
+                    <li>Slam (PP: 20)</li>
+                </ul>
+            </div>
+            
+            <div class="pokemon-card">
+                <h3>Charmeleon</h3>
+                <p>Nickname: CHARMY</p>
+                <p>Level: 22</p>
+                <p>HP: 62/62</p>
+                <p>Attack: 53</p>
+                <p>Defense: 43</p>
+                <p>Speed: 65</p>
+                <p>Special Attack: 60</p>
+                <p>Moves:</p>
+                <ul>
+                    <li>Ember (PP: 25)</li>
+                    <li>Slash (PP: 20)</li>
+                    <li>Growl (PP: 40)</li>
+                    <li>Leer (PP: 30)</li>
+                </ul>
+            </div>
+            
+            <div class="pokemon-card">
+                <h3>Bulbasaur</h3>
+                <p>Nickname: BULBY</p>
+                <p>Level: 18</p>
+                <p>HP: 51/51</p>
+                <p>Attack: 32</p>
+                <p>Defense: 33</p>
+                <p>Speed: 30</p>
+                <p>Special Attack: 40</p>
+                <p>Moves:</p>
+                <ul>
+                    <li>Vine Whip (PP: 25)</li>
+                    <li>Leech Seed (PP: 10)</li>
+                    <li>Tackle (PP: 35)</li>
+                    <li>Growl (PP: 40)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="navigation">
+        <a href="/pokemon.html">Go Back</a>
+        <a href="/">Back to Home</a>
+    </div>
+</body>
+</html> 

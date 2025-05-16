@@ -1,0 +1,125 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <title>Pokémon Save File Analyzer</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #ff3c00;
+            text-align: center;
+        }
+        .upload-form {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .pokemon-info {
+            margin-top: 20px;
+        }
+        .pokemon-party {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+        .pokemon-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px;
+            width: 200px;
+        }
+        .home-link {
+            display: block;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .note {
+            background-color: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #ff3c00;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+        }
+        .file-input {
+            margin: 20px 0;
+        }
+        .upload-options {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+        .separator {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            color: #666;
+            margin: 15px 0;
+            width: 100%;
+        }
+        .separator::before,
+        .separator::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #ddd;
+        }
+        .separator::before {
+            margin-right: 10px;
+        }
+        .separator::after {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pokémon Save File Analyzer</h1>
+    
+    <div class="upload-form">
+        <h2>Upload Save File</h2>
+        <p>Upload your Pokémon save file to view your party Pokémon and trainer information.</p>
+        
+        <div class="upload-options">
+            <form action="/analyze_pokemon" method="POST" enctype="multipart/form-data" accept-charset="UTF-8">
+                <div class="file-input">
+                    <input type="file" name="save_file" id="save_file" accept=".sav">
+                </div>
+                <button type="submit" class="button">Analyze Save File</button>
+            </form>
+            
+            <div class="separator">OR</div>
+            
+            <h3>View Sample Pokémon Data</h3>
+            <a href="/analyze_pokemon" class="button">View Sample Pokémon Data</a>
+        </div>
+        
+        <div class="note">
+            <p><strong>Supported Games:</strong> Pokémon Red/Blue/Yellow (Gen 1), Gold/Silver/Crystal (Gen 2), and Ruby/Sapphire/Emerald/FireRed/LeafGreen (Gen 3).</p>
+            <p><strong>Note:</strong> File upload size is limited to 128KB. Make sure your save file is valid and not corrupted.</p>
+        </div>
+    </div>
+    
+    <div id="results" class="pokemon-info"></div>
+    
+    <a href="/" class="home-link">Back to Home</a>
+</body>
+</html> 
