@@ -21,17 +21,11 @@ set(TINYUSB_LIBNETWORKING_SOURCES
     ${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
 )
 
-# Pokemon parser sources
-set(POKEMON_PARSER_SOURCES
-    pokemon_parser.c
-)
-
 add_executable(${PROJECT_NAME} 
     webserver.c 
     tusb_lwip_glue.c 
     usb_descriptors.c 
     ${TINYUSB_LIBNETWORKING_SOURCES}
-    ${POKEMON_PARSER_SOURCES}
 )
 
 pico_enable_stdio_usb(${PROJECT_NAME} 0)

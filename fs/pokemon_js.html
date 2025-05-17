@@ -1,0 +1,1344 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <title>Pokémon Save File Analyzer</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <!-- Add cache-busting parameter to force loading latest version -->
+    <script src="/js/pokemon-data.js?v=20230306"></script>
+    <script src="/js/pokemon-parser.js?v=20230306"></script>
+    <script>
+    // Override sprite URL function if it exists
+    window.addEventListener('DOMContentLoaded', function() {
+        // Wait until the pokemon-data.js file is loaded
+        setTimeout(function() {
+            // If getPokemonSpriteUrl exists, create a wrapper to modify its behavior
+            if (typeof getPokemonSpriteUrl === 'function') {
+                const originalGetPokemonSpriteUrl = getPokemonSpriteUrl;
+                
+                // Define the safePokemonConversion function if it doesn't exist yet
+                if (typeof window.safePokemonConversion !== 'function') {
+                    window.safePokemonConversion = function(id, generation) {
+                        console.log(`safePokemonConversion called with id ${id}, generation ${generation}`);
+                        // Fallback hardcoded mapping for common Gen 1 Pokemon
+                        if (generation === 1) {
+                            const gen1Mapping = {
+                                125: 12,  // Butterfree
+                                36: 16,   // Pidgey
+                                176: 4,   // Charmander
+                                84: 25,   // Pikachu
+                                112: 13,  // Weedle (was incorrectly mapped to Kakuna #14)
+                                165: 19,  // Rattata (was incorrectly mapped to Nidorina #30)
+                            };
+                            
+                            if (gen1Mapping[id]) {
+                                return gen1Mapping[id];
+                            }
+                        }
+                        
+                        // If all else fails, return the original ID
+                        return id;
+                    };
+                }
+                
+                // Override with a function that returns local URLs
+                window.getPokemonSpriteUrl = function(id, generation) {
+                    // Use our safe conversion function (either the one we just defined or the one defined later)
+                    const convertedId = window.safePokemonConversion(id, generation);
+                    return `/sprites/pokemon/${convertedId}.png`;
+                };
+                
+                console.log('Overrode getPokemonSpriteUrl to use local sprites');
+            }
+        }, 100);
+    });
+    </script>
+    <style>
+        :root {
+            --pokemon-red: #ff3c00;
+            --pokemon-blue: #3b5ba7;
+            --pokemon-yellow: #fbd200;
+            --pokedex-red: #ff0000;
+            --card-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            --transition-speed: 0.3s;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        h1, h2 {
+            color: var(--pokemon-red);
+            text-align: center;
+            font-weight: 700;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            position: relative;
+            display: inline-block;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        h1::after {
+            content: '';
+            display: block;
+            width: 60%;
+            height: 3px;
+            background: linear-gradient(to right, var(--pokemon-red), var(--pokemon-blue));
+            margin: 8px auto 0;
+            border-radius: 2px;
+        }
+        
+        .upload-form {
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            margin: 30px 0;
+            background-color: white;
+            box-shadow: var(--card-shadow);
+            transition: border-color var(--transition-speed), transform var(--transition-speed);
+        }
+        
+        .upload-form:hover {
+            border-color: var(--pokemon-red);
+            transform: translateY(-5px);
+        }
+        
+        .pokemon-info {
+            margin-top: 30px;
+            opacity: 0;
+            animation: fadeIn 0.5s forwards;
+        }
+        
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+        
+        .trainer-info {
+            background: linear-gradient(135deg, #ffffff, #f5f5f5);
+            border-radius: 12px;
+            padding: 20px 25px;
+            margin-bottom: 25px;
+            box-shadow: var(--card-shadow);
+            border-left: 5px solid var(--pokemon-blue);
+        }
+        
+        .trainer-info h2 {
+            color: var(--pokemon-blue);
+            margin-top: 0;
+            text-align: left;
+        }
+        
+        .pokemon-party {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 25px;
+            justify-content: center;
+        }
+        
+        /* Pokédex styling */
+        .pokedex-entry {
+            border: none;
+            border-radius: 16px;
+            background-color: white;
+            box-shadow: var(--card-shadow);
+            transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+            overflow: hidden;
+            position: relative;
+            padding-bottom: 15px;
+            cursor: pointer;
+        }
+        
+        .pokedex-entry:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 25px rgba(0,0,0,0.18);
+        }
+        
+        .pokedex-header {
+            background: var(--pokedex-red);
+            color: white;
+            padding: 10px 15px;
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .pokedex-header h3 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        
+        .pokemon-number {
+            font-weight: bold;
+            opacity: 0.8;
+            font-size: 1.1rem;
+        }
+        
+        .pokemon-image-container {
+            background: linear-gradient(135deg, #f6f6f6, #e9e9e9);
+            padding: 20px;
+            text-align: center;
+            height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .pokemon-image-container::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at center, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 70%);
+            pointer-events: none;
+        }
+        
+        .pokemon-image {
+            max-width: 120px;
+            max-height: 120px;
+            transition: transform 0.3s ease;
+        }
+        
+        .pokedex-entry:hover .pokemon-image {
+            transform: scale(1.1);
+        }
+        
+        .pokemon-details {
+            padding: 15px 20px;
+        }
+        
+        .pokemon-types {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .type-badge {
+            padding: 3px 10px;
+            border-radius: 15px;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .pokemon-description {
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            color: #555;
+            font-style: italic;
+            line-height: 1.4;
+        }
+        
+        .pokemon-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 15px;
+            font-size: 0.85rem;
+        }
+        
+        .pokemon-meta div {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .meta-label {
+            color: #777;
+            font-weight: bold;
+        }
+        
+        .divider {
+            height: 1px;
+            background: #eee;
+            margin: 15px 0;
+        }
+        
+        .pokemon-stats {
+            margin-top: 15px;
+        }
+        
+        .stat-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .stat-name {
+            width: 110px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #555;
+        }
+        
+        .stat-value {
+            width: 35px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            text-align: right;
+            margin-right: 8px;
+        }
+        
+        .stat-bar-container {
+            flex: 1;
+            height: 8px;
+            background-color: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .stat-bar {
+            height: 100%;
+            border-radius: 4px;
+            width: 0; /* Start at 0 */
+            transition: width 0.8s ease-out;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        /* Colored stat bars */
+        .hp-bar { background: linear-gradient(to right, #ff5959, #ff0000); }
+        .attack-bar { background: linear-gradient(to right, #f5ac78, #ff6000); }
+        .defense-bar { background: linear-gradient(to right, #fae078, #ffd200); }
+        .speed-bar { background: linear-gradient(to right, #9db7f5, #3355ff); }
+        .spattack-bar { background: linear-gradient(to right, #fa92b2, #ff0090); }
+        .spdefense-bar { background: linear-gradient(to right, #a7db8d, #4e8234); }
+        
+        .moves-container {
+            margin-top: 15px;
+        }
+        
+        .moves-title {
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .moves-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        
+        .move-item {
+            background: #f5f5f5;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .home-link {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 10px 20px;
+            background-color: var(--pokemon-blue);
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: background-color var(--transition-speed);
+            box-shadow: var(--card-shadow);
+        }
+        
+        .home-link:hover {
+            background-color: #2a4580;
+        }
+        
+        .note {
+            background-color: #fff8e1;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 0.9rem;
+            border-left: 5px solid var(--pokemon-yellow);
+        }
+        
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: var(--pokemon-red);
+            color: white;
+            text-decoration: none;
+            border-radius: 30px;
+            margin-top: 20px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            transition: background-color var(--transition-speed), transform var(--transition-speed);
+            box-shadow: 0 3px 6px rgba(255, 60, 0, 0.3);
+        }
+        
+        .button:hover {
+            background-color: #e83600;
+            transform: translateY(-2px);
+        }
+        
+        .file-input {
+            margin: 20px 0;
+        }
+        
+        .file-input input {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f8f8f8;
+        }
+        
+        #results {
+            display: none;
+        }
+        
+        .error-message {
+            color: #d9534f;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8d7da;
+            border-radius: 8px;
+            border-left: 5px solid #d9534f;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+        
+        /* Loading state styling */
+        .pokedex-entry.loading .pokemon-image {
+            opacity: 0.6;
+            filter: grayscale(50%);
+        }
+        
+        .pokedex-entry.loading .pokemon-description:after {
+            content: '';
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            margin-left: 5px;
+            border-radius: 50%;
+            background-color: var(--pokemon-red);
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.5; }
+        }
+        
+        .pokedex-entry.loading .stat-bar {
+            background: linear-gradient(to right, #eee, #ccc, #eee);
+            animation: shimmer 2s infinite;
+            background-size: 200% 100%;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        /* Add audio button styling */
+        .audio-button {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 36px;
+            height: 36px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 5;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .audio-button:hover {
+            background-color: rgba(255, 255, 255, 0.95);
+            transform: scale(1.1);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+        }
+        
+        .audio-button svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--pokemon-red);
+            transition: all 0.2s ease;
+            z-index: 2;
+        }
+        
+        .audio-button.playing svg {
+            fill: var(--pokemon-blue);
+        }
+        
+        /* Audio waves container */
+        .audio-waves {
+            position: absolute;
+            display: flex;
+            align-items: flex-end;
+            height: 12px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .audio-button.playing .audio-waves {
+            opacity: 1;
+        }
+        
+        /* Audio wave animation */
+        .audio-wave {
+            display: inline-block;
+            width: 2px;
+            height: 3px;
+            background: var(--pokemon-blue);
+            margin: 0 1px;
+            border-radius: 1px;
+            transform-origin: bottom;
+        }
+        
+        .audio-button.playing .audio-wave:nth-child(1) {
+            animation: sound 0.7s infinite alternate 0.0s;
+        }
+        
+        .audio-button.playing .audio-wave:nth-child(2) {
+            animation: sound 0.7s infinite alternate 0.2s;
+        }
+        
+        .audio-button.playing .audio-wave:nth-child(3) {
+            animation: sound 0.7s infinite alternate 0.1s;
+        }
+        
+        .audio-button.playing .audio-wave:nth-child(4) {
+            animation: sound 0.7s infinite alternate 0.3s;
+        }
+        
+        @keyframes sound {
+            0% { height: 3px; }
+            100% { height: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Pokémon Save File Analyzer</h1>
+    <p style="text-align: center;">JavaScript-powered save file parser for Gen 1-3 Pokémon games</p>
+    
+    <div class="upload-form">
+        <h2>Upload Save File</h2>
+        <p>Upload your Pokémon save file to view your party Pokémon and trainer information.</p>
+        
+        <div>
+            <div class="file-input">
+                <input type="file" id="saveFileInput" accept=".sav">
+            </div>
+            <button id="analyzeButton" class="button">Analyze Save File</button>
+        </div>
+        
+        <div class="note">
+            <p><strong>Supported Games:</strong> Pokémon Red/Blue/Yellow (Gen 1), Gold/Silver/Crystal (Gen 2), and Ruby/Sapphire/Emerald/FireRed/LeafGreen (Gen 3).</p>
+            <p><strong>Note:</strong> Your save file is processed entirely in your browser and is never uploaded to a server.</p>
+        </div>
+    </div>
+    
+    <div id="results" class="pokemon-info">
+        <div id="trainerInfo" class="trainer-info">
+            <!-- Trainer info will be inserted here -->
+        </div>
+        
+        <h2>Party Pokémon</h2>
+        <div id="pokemonParty" class="pokemon-party">
+            <!-- Pokemon party info will be inserted here -->
+        </div>
+    </div>
+    
+    <div id="errorMessage" class="error-message" style="display: none;">
+        <!-- Error messages will be shown here -->
+    </div>
+    
+    <div style="text-align: center;">
+        <a href="/" class="home-link">Back to Home</a>
+    </div>
+    
+    <footer>
+        <p>Pico Webserver - Pokémon Save File Analyzer</p>
+    </footer>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('saveFileInput');
+            const analyzeButton = document.getElementById('analyzeButton');
+            const resultsDiv = document.getElementById('results');
+            const trainerInfoDiv = document.getElementById('trainerInfo');
+            const pokemonPartyDiv = document.getElementById('pokemonParty');
+            const errorMessageDiv = document.getElementById('errorMessage');
+            
+            // Global pokemon data map to track which pokemon have been displayed
+            window.displayedPokemon = {};
+            
+            // Audio context for playing Pokémon cries
+            let audioContext;
+            let currentlyPlayingAudio = null;
+            
+            // Initialize audio context on user interaction
+            function initAudioContext() {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            
+            // Function to play Pokémon cry with proper error handling
+            function playPokemonCry(pokemonId, generation) {
+                // Prevent clicking during playback attempts
+                if (currentlyPlayingAudio) {
+                    return;
+                }
+                
+                // Initialize the audio context
+                initAudioContext();
+                
+                // Convert to National Dex ID for audio files
+                const nationalDexId = safePokemonConversion(pokemonId, generation);
+                
+                // Toggle visual indicators
+                const allButtons = document.querySelectorAll('.audio-button');
+                allButtons.forEach(btn => btn.classList.remove('playing'));
+                
+                const button = document.querySelector(`#pokemon-${pokemonId} .audio-button`);
+                if (button) button.classList.add('playing');
+                
+                // Create a dummy audio that makes a short beep sound
+                const dummyBeep = function() {
+                    try {
+                        if (audioContext) {
+                            const oscillator = audioContext.createOscillator();
+                            const gainNode = audioContext.createGain();
+                            
+                            oscillator.type = 'sine';
+                            oscillator.frequency.setValueAtTime(1046.5, audioContext.currentTime); // C6
+                            
+                            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
+                            
+                            oscillator.connect(gainNode);
+                            gainNode.connect(audioContext.destination);
+                            
+                            oscillator.start();
+                            oscillator.stop(audioContext.currentTime + 0.5);
+                            
+                            // Clean up after 0.5 seconds
+                            setTimeout(function() {
+                                resetAudioState();
+                            }, 500);
+                        } else {
+                            resetAudioState();
+                        }
+                    } catch (e) {
+                        console.error('Error generating beep sound:', e);
+                        resetAudioState();
+                    }
+                };
+                
+                function resetAudioState() {
+                    // Reset audio button state
+                    const button = document.querySelector(`#pokemon-${pokemonId} .audio-button`);
+                    if (button) button.classList.remove('playing');
+                    currentlyPlayingAudio = null;
+                }
+                
+                // Try to play the actual sound file
+                const audio = new Audio(`/sounds/pokemon/${nationalDexId}.mp3`);
+                currentlyPlayingAudio = audio;
+                
+                // Set a timeout to handle hanging audio loading
+                const loadTimeout = setTimeout(function() {
+                    console.log('Audio load timed out, using fallback sound');
+                    if (currentlyPlayingAudio === audio) {
+                        dummyBeep();
+                    }
+                }, 2000);
+                
+                // Handle error if the audio file can't be loaded
+                audio.onerror = function() {
+                    clearTimeout(loadTimeout);
+                    console.log(`Couldn't load audio for Pokémon #${nationalDexId}, using beep sound`);
+                    dummyBeep();
+                };
+                
+                // When audio ends, reset state
+                audio.onended = function() {
+                    clearTimeout(loadTimeout);
+                    resetAudioState();
+                };
+                
+                // Try to play the audio
+                audio.play().catch(error => {
+                    clearTimeout(loadTimeout);
+                    console.error('Error playing Pokémon cry, using beep sound:', error);
+                    dummyBeep();
+                });
+            }
+            
+            // Function to update pokemon display when data loads
+            window.updatePokemonDisplay = function(id, data) {
+                console.log('Updating display for Pokémon:', id, data.name);
+                // Check if this pokemon is being displayed
+                if (window.displayedPokemon[id]) {
+                    const pokemonElement = document.getElementById(`pokemon-${id}`);
+                    if (pokemonElement) {
+                        // Update the Pokemon card with actual data
+                        updatePokemonCard(pokemonElement, data);
+                        
+                        // Force repaint of all stat bars after a delay
+                        setTimeout(() => {
+                            animateStatBars(pokemonElement);
+                        }, 100);
+                    }
+                }
+            };
+            
+            // Fallback data for common Gen 1 Pokémon when API fails
+            const fallbackPokemonData = {
+                13: { // Weedle
+                    id: 13,
+                    name: "Weedle",
+                    types: ["Bug", "Poison"],
+                    description: "Often found in forests, eating leaves. It has a sharp venomous stinger on its head.",
+                    height: "0.3 m",
+                    weight: "3.2 kg",
+                    category: "Hairy Pokémon",
+                    sprites: {
+                        default: "/sprites/pokemon/13.png",
+                        official: "/sprites/pokemon/13.png"
+                    }
+                },
+                19: { // Rattata
+                    id: 19,
+                    name: "Rattata",
+                    types: ["Normal"],
+                    description: "Will chew on anything with its fangs. If you see one, it is certain that 40 more live in the area.",
+                    height: "0.3 m",
+                    weight: "3.5 kg",
+                    category: "Mouse Pokémon",
+                    sprites: {
+                        default: "/sprites/pokemon/19.png",
+                        official: "/sprites/pokemon/19.png"
+                    }
+                },
+                // Add common Pokémon that appear in save files
+                12: { // Butterfree
+                    id: 12,
+                    name: "Butterfree",
+                    types: ["Bug", "Flying"],
+                    description: "In battle, it flaps its wings at high speed to release highly toxic dust into the air.",
+                    height: "1.1 m",
+                    weight: "32.0 kg",
+                    category: "Butterfly Pokémon",
+                    sprites: {
+                        default: "/sprites/pokemon/12.png",
+                        official: "/sprites/pokemon/12.png"
+                    }
+                },
+                16: { // Pidgey
+                    id: 16,
+                    name: "Pidgey",
+                    types: ["Normal", "Flying"],
+                    description: "Very docile. If attacked, it will often kick up sand to protect itself rather than fight back.",
+                    height: "0.3 m", 
+                    weight: "1.8 kg",
+                    category: "Tiny Bird Pokémon",
+                    sprites: {
+                        default: "/sprites/pokemon/16.png",
+                        official: "/sprites/pokemon/16.png"
+                    }
+                },
+                4: { // Charmander
+                    id: 4,
+                    name: "Charmander",
+                    types: ["Fire"],
+                    description: "It has a preference for hot things. When it rains, steam is said to spout from the tip of its tail.",
+                    height: "0.6 m",
+                    weight: "8.5 kg",
+                    category: "Lizard Pokémon",
+                    sprites: {
+                        default: "/sprites/pokemon/4.png",
+                        official: "/sprites/pokemon/4.png"
+                    }
+                },
+                25: { // Pikachu
+                    id: 25,
+                    name: "Pikachu",
+                    types: ["Electric"],
+                    description: "When it is angered, it immediately discharges the energy stored in the pouches in its cheeks.",
+                    height: "0.4 m",
+                    weight: "6.0 kg",
+                    category: "Mouse Pokémon",
+                    sprites: {
+                        default: "/sprites/pokemon/25.png",
+                        official: "/sprites/pokemon/25.png"
+                    }
+                },
+                14: { // Kakuna
+                    id: 14,
+                    name: "Kakuna",
+                    types: ["Bug", "Poison"],
+                    description: "Almost incapable of moving, this Pokémon can only harden its shell to protect itself.",
+                    height: "0.6 m",
+                    weight: "10.0 kg",
+                    category: "Cocoon Pokémon",
+                    sprites: {
+                        default: "/sprites/pokemon/14.png",
+                        official: "/sprites/pokemon/14.png"
+                    }
+                },
+                30: { // Nidorina
+                    id: 30,
+                    name: "Nidorina",
+                    types: ["Poison"],
+                    description: "The female's horn develops slowly. Prefers physical attacks such as clawing and biting.",
+                    height: "0.8 m",
+                    weight: "20.0 kg",
+                    category: "Poison Pin Pokémon",
+                    sprites: {
+                        default: "/sprites/pokemon/30.png",
+                        official: "/sprites/pokemon/30.png"
+                    }
+                }
+            };
+            
+            // Function to update card with fallback data if needed
+            function updateWithFallbackData() {
+                // Check for unloaded Pokémon that need fallback data
+                const loadingElements = document.querySelectorAll('.pokedex-entry.loading');
+                loadingElements.forEach(element => {
+                    const pokemonId = parseInt(element.dataset.id);
+                    console.log(`Checking fallback for ${pokemonId}`);
+                    
+                    // Get the National Dex ID for this Pokemon
+                    let nationalDexId = null;
+                    
+                    try {
+                        // Use our safe converter function
+                        nationalDexId = safePokemonConversion(pokemonId, 1);
+                        console.log(`Original ID ${pokemonId} maps to National Dex ID ${nationalDexId}`);
+                    } catch (e) {
+                        console.error(`Error converting ID ${pokemonId}:`, e);
+                        // Last resort fallback
+                        nationalDexId = pokemonId;
+                    }
+                    
+                    // Check if we have fallback data for this Pokemon ID
+                    if (nationalDexId && fallbackPokemonData[nationalDexId]) {
+                        console.log(`Applying fallback data for ID ${pokemonId} (using ${nationalDexId})`);
+                        updatePokemonCard(element, fallbackPokemonData[nationalDexId]);
+                        animateStatBars(element);
+                    } else {
+                        // If we don't have fallback data but the element is still in loading state,
+                        // at least remove the loading state
+                        element.classList.remove('loading');
+                    }
+                });
+            }
+            
+            // Run fallback data application more quickly and repeatedly
+            setTimeout(updateWithFallbackData, 1000);
+            setTimeout(updateWithFallbackData, 3000);
+            setTimeout(updateWithFallbackData, 5000);
+            
+            // Function to animate stat bars
+            function animateStatBars(element) {
+                const statBars = element.querySelectorAll('.stat-bar');
+                console.log(`Animating ${statBars.length} stat bars for ${element.id}`);
+                
+                statBars.forEach(bar => {
+                    // Get the target width from data attribute and apply it directly
+                    const targetWidth = bar.getAttribute('data-width');
+                    if (targetWidth) {
+                        // Apply width directly
+                        bar.style.width = targetWidth;
+                        console.log(`Set bar width to ${targetWidth} for ${element.id}`);
+                    }
+                });
+            }
+            
+            // Function to update a Pokemon card with new data
+            function updatePokemonCard(element, data) {
+                // Update name and number
+                const nameElement = element.querySelector('.pokedex-header h3');
+                if (nameElement) nameElement.textContent = data.name;
+                
+                // Update pokemon number
+                const numberElement = element.querySelector('.pokemon-number');
+                if (numberElement) numberElement.textContent = `#${data.id || element.dataset.id.toString().padStart(3, '0')}`;
+                
+                // Update sprite
+                const imageElement = element.querySelector('.pokemon-image');
+                if (imageElement && data.sprites) {
+                    imageElement.src = data.sprites.official || data.sprites.default;
+                    imageElement.alt = data.name;
+                }
+                
+                // Update types
+                const typesContainer = element.querySelector('.pokemon-types');
+                if (typesContainer && data.types) {
+                    typesContainer.innerHTML = data.types.map(type => 
+                        `<div class="type-badge" style="background-color: ${getTypeColor(type)}">${type}</div>`
+                    ).join('');
+                }
+                
+                // Update description
+                const descriptionElement = element.querySelector('.pokemon-description');
+                if (descriptionElement) descriptionElement.textContent = data.description;
+                
+                // Update meta info
+                const heightElement = element.querySelector('[data-meta="height"]');
+                if (heightElement) heightElement.textContent = data.height;
+                
+                const weightElement = element.querySelector('[data-meta="weight"]');
+                if (weightElement) weightElement.textContent = data.weight;
+                
+                const categoryElement = element.querySelector('[data-meta="category"]');
+                if (categoryElement) categoryElement.textContent = data.category;
+                
+                // Remove loading indicators if present
+                element.classList.remove('loading');
+            }
+            
+            analyzeButton.addEventListener('click', function() {
+                if (!fileInput.files.length) {
+                    showError('Please select a save file first.');
+                    return;
+                }
+                
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        // Clear previous results
+                        trainerInfoDiv.innerHTML = '';
+                        pokemonPartyDiv.innerHTML = '';
+                        errorMessageDiv.style.display = 'none';
+                        
+                        // Clear displayed pokemon tracking
+                        window.displayedPokemon = {};
+                        
+                        // Get file data as an array buffer
+                        const saveData = new Uint8Array(e.target.result);
+                        
+                        // Parse the save file using the Pokemon parser
+                        const saveFile = new PokemonSaveFile(saveData);
+                        
+                        // Display trainer info
+                        displayTrainerInfo(saveFile);
+                        
+                        // Display Pokemon party
+                        displayPokemonParty(saveFile);
+                        
+                        // Show results
+                        resultsDiv.style.display = 'block';
+                        
+                        // Scroll to results
+                        resultsDiv.scrollIntoView({ behavior: 'smooth' });
+                        
+                        // Animate all stat bars after a short delay
+                        setTimeout(() => {
+                            console.log('Animating all stat bars');
+                            const allPokemonCards = document.querySelectorAll('.pokedex-entry');
+                            allPokemonCards.forEach(card => {
+                                animateStatBars(card);
+                            });
+                        }, 500);
+                    } catch (error) {
+                        showError('Error parsing save file: ' + error.message);
+                    }
+                };
+                
+                reader.onerror = function() {
+                    showError('Error reading file.');
+                };
+                
+                // Read the file as an array buffer
+                reader.readAsArrayBuffer(file);
+            });
+            
+            // Update the Pokémon data display when we're loaded
+            const spriteErrorHandler = function(e) {
+                console.log('Error loading sprite, using fallback:', e.target.src);
+                // Try loading a local sprite instead
+                const imgElement = e.target;
+                const url = imgElement.src;
+                
+                // Set to a generic Pokeball image when sprites can't be loaded
+                imgElement.src = '/sprites/pokemon/0.png';
+                
+                // Also remove loading state from the card if present
+                const cardElement = imgElement.closest('.pokedex-entry');
+                if (cardElement) {
+                    cardElement.classList.remove('loading');
+                }
+            };
+            
+            function getTypeColor(type) {
+                const typeColors = {
+                    'Normal': '#A8A878',
+                    'Fire': '#F08030',
+                    'Water': '#6890F0',
+                    'Electric': '#F8D030',
+                    'Grass': '#78C850',
+                    'Ice': '#98D8D8',
+                    'Fighting': '#C03028',
+                    'Poison': '#A040A0',
+                    'Ground': '#E0C068',
+                    'Flying': '#A890F0',
+                    'Psychic': '#F85888',
+                    'Bug': '#A8B820',
+                    'Rock': '#B8A038',
+                    'Ghost': '#705898',
+                    'Dragon': '#7038F8',
+                    'Dark': '#705848',
+                    'Steel': '#B8B8D0',
+                    'Fairy': '#EE99AC'
+                };
+                return typeColors[type] || '#68A090'; // Default teal color if type not found
+            }
+            
+            // Function to handle Pokemon ID conversion safely
+            function safePokemonConversion(id, generation) {
+                // First try using the external function if available
+                if (typeof getPokemonConvertedId === 'function') {
+                    try {
+                        return getPokemonConvertedId(id, generation);
+                    } catch (e) {
+                        console.error('Error using getPokemonConvertedId:', e);
+                    }
+                }
+                
+                // Fallback hardcoded mapping for common Gen 1 Pokemon
+                if (generation === 1) {
+                    const gen1Mapping = {
+                        125: 12,  // Butterfree
+                        36: 16,   // Pidgey
+                        176: 4,   // Charmander
+                        84: 25,   // Pikachu
+                        112: 13,  // Weedle (was incorrectly mapped to Kakuna #14)
+                        165: 19,  // Rattata (was incorrectly mapped to Nidorina #30)
+                    };
+                    
+                    if (gen1Mapping[id]) {
+                        return gen1Mapping[id];
+                    }
+                }
+                
+                // If all else fails, return the original ID
+                return id;
+            }
+            
+            function displayTrainerInfo(saveFile) {
+                let html = '';
+                
+                // Get trainer info based on the save file format
+                const trainerName = saveFile.getTrainerName();
+                const gameVersion = saveFile.getGameVersion();
+                const money = saveFile.getMoney();
+                const playTime = saveFile.getPlayTime();
+                const badges = saveFile.getBadges();
+                
+                html += `<h2>Trainer: ${trainerName}</h2>`;
+                html += `<p><strong>Game:</strong> ${gameVersion}</p>`;
+                html += `<p><strong>Money:</strong> $${money}</p>`;
+                html += `<p><strong>Badges:</strong> ${badges}</p>`;
+                html += `<p><strong>Play Time:</strong> ${playTime}</p>`;
+                
+                trainerInfoDiv.innerHTML = html;
+            }
+            
+            function displayPokemonParty(saveFile) {
+                const party = saveFile.getPartyPokemon();
+                
+                if (!party || party.length === 0) {
+                    pokemonPartyDiv.innerHTML = '<p>No Pokémon in party.</p>';
+                    return;
+                }
+                
+                let html = '';
+                
+                // Get the game generation for ID conversion
+                const generation = saveFile.getGeneration();
+                console.log("Game Generation:", generation); // Debug info
+                
+                // Calculate max stats for visualization
+                const maxStats = {
+                    hp: Math.max(...party.map(p => p.maxHP), 255),
+                    attack: Math.max(...party.map(p => p.attack), 255),
+                    defense: Math.max(...party.map(p => p.defense), 255),
+                    speed: Math.max(...party.map(p => p.speed), 255),
+                    specialAttack: Math.max(...party.map(p => p.special || p.specialAttack), 255),
+                    specialDefense: Math.max(...party.map(p => p.specialDefense || p.special), 255)
+                };
+                
+                // Generate HTML for each Pokemon in party
+                party.forEach(pokemon => {
+                    // Register this pokemon in the global tracking
+                    window.displayedPokemon[pokemon.speciesId] = true;
+                    
+                    // Enhanced debug info to track the ID conversion
+                    const originalId = pokemon.speciesId;
+                    console.log(`Original Pokemon: ${pokemon.species} (ID: ${originalId} in hex: 0x${originalId.toString(16).toUpperCase()})`);
+                    
+                    // Get the Pokémon data from our database, properly passing the generation
+                    let pokemonInfo;
+                    let spriteUrl;
+                    
+                    try {
+                        if (typeof getPokemonInfo === 'function') {
+                            pokemonInfo = getPokemonInfo(pokemon.speciesId, generation);
+                        }
+                    } catch (e) {
+                        console.error('Error calling getPokemonInfo:', e);
+                    }
+                    
+                    // Use safe ID conversion if pokemonInfo is not available
+                    if (!pokemonInfo) {
+                        // Generate basic Pokemon info using our safe conversion function
+                        const safeId = safePokemonConversion(pokemon.speciesId, generation);
+                        pokemonInfo = {
+                            id: safeId,
+                            name: pokemon.species || `Pokemon #${safeId}`,
+                            types: ["Normal"],
+                            description: "No description available",
+                            height: "? m",
+                            weight: "? kg",
+                            category: "Pokemon",
+                            isLoading: false
+                        };
+                    }
+                    
+                    // Get sprite URL safely
+                    try {
+                        if (typeof getPokemonSpriteUrl === 'function') {
+                            spriteUrl = getPokemonSpriteUrl(pokemon.speciesId, generation);
+                        } else {
+                            // Use our safe ID conversion
+                            const safeId = safePokemonConversion(pokemon.speciesId, generation);
+                            spriteUrl = `/sprites/pokemon/${safeId}.png`;
+                        }
+                    } catch (e) {
+                        console.error('Error getting sprite URL:', e);
+                        // Fallback to a safe ID
+                        const safeId = safePokemonConversion(pokemon.speciesId, generation);
+                        spriteUrl = `/sprites/pokemon/${safeId}.png`;
+                    }
+                    
+                    console.log(`After conversion: ${pokemonInfo.name} (National Dex #${pokemonInfo.id})`);
+                    
+                    // Calculate percentages for stat bars
+                    const levelPercent = Math.min(100, (pokemon.level / 100) * 100);
+                    const hpPercent = Math.min(100, (pokemon.maxHP / maxStats.hp) * 100);
+                    const attackPercent = Math.min(100, (pokemon.attack / maxStats.attack) * 100);
+                    const defensePercent = Math.min(100, (pokemon.defense / maxStats.defense) * 100);
+                    const speedPercent = Math.min(100, (pokemon.speed / maxStats.speed) * 100);
+                    const specialAttackPercent = Math.min(100, ((pokemon.special || pokemon.specialAttack) / maxStats.specialAttack) * 100);
+                    const specialDefensePercent = pokemon.specialDefense ? 
+                        Math.min(100, (pokemon.specialDefense / maxStats.specialDefense) * 100) : 0;
+                        
+                    // Generate type badges HTML
+                    const typeHtml = pokemonInfo.types.map(type => 
+                        `<div class="type-badge" style="background-color: ${getTypeColor(type)}">${type}</div>`
+                    ).join('');
+                    
+                    // Set a default background color based on the primary type
+                    const primaryType = pokemonInfo.types[0] || "Normal";
+                    const bgColorLight = `${getTypeColor(primaryType)}33`; // 20% opacity
+                    
+                    // Use a local sprite URL if possible (prevent GitHub rate limiting)
+                    // Make sure we have a valid Pokemon ID
+                const nationalDexId = safePokemonConversion(pokemon.speciesId, generation);
+                const finalSpriteUrl = `/sprites/pokemon/${nationalDexId}.png`;
+                    
+                    html += `
+                        <div id="pokemon-${pokemon.speciesId}" data-id="${pokemon.speciesId}" data-generation="${generation}" class="pokedex-entry ${pokemonInfo.isLoading ? 'loading' : ''}" style="background: linear-gradient(to bottom, white, ${bgColorLight});">
+                            <div class="pokedex-header">
+                                <h3>${pokemonInfo.name}</h3>
+                                <div class="pokemon-number">#${pokemonInfo.id.toString().padStart(3, '0')}</div>
+                            </div>
+                            
+                            <div class="pokemon-image-container">
+                                <img src="${finalSpriteUrl}" alt="${pokemonInfo.name}" class="pokemon-image" onerror="spriteErrorHandler(event)">
+                                <div class="audio-button">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                                    </svg>
+                                    <div class="audio-waves">
+                                        <span class="audio-wave"></span>
+                                        <span class="audio-wave"></span>
+                                        <span class="audio-wave"></span>
+                                        <span class="audio-wave"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="pokemon-details">
+                                <div style="margin-bottom: 10px; text-align: center; font-style: italic;">
+                                    Original name: ${pokemon.species} (ID: ${pokemon.speciesId})
+                                </div>
+                                
+                                <div class="pokemon-types">
+                                    ${typeHtml}
+                                </div>
+                                
+                                <div class="pokemon-description">
+                                    ${pokemonInfo.description}
+                                </div>
+                                
+                                <div class="pokemon-meta">
+                                    <div>
+                                        <span class="meta-label">Height:</span> <span data-meta="height">${pokemonInfo.height}</span>
+                                    </div>
+                                    <div>
+                                        <span class="meta-label">Weight:</span> <span data-meta="weight">${pokemonInfo.weight}</span>
+                                    </div>
+                                    <div>
+                                        <span class="meta-label">Category:</span> <span data-meta="category">${pokemonInfo.category}</span>
+                                    </div>
+                                    <div>
+                                        <span class="meta-label">Nickname:</span> ${pokemon.nickname}
+                                    </div>
+                                </div>
+                                
+                                <div class="divider"></div>
+                                
+                                <div class="pokemon-stats">
+                                    <div class="stat-row">
+                                        <div class="stat-name">Level</div>
+                                        <div class="stat-value">${pokemon.level}</div>
+                                        <div class="stat-bar-container">
+                                            <div class="stat-bar hp-bar" data-width="${levelPercent}%" style="width: ${levelPercent}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="stat-row">
+                                        <div class="stat-name">HP</div>
+                                        <div class="stat-value">${pokemon.currentHP}/${pokemon.maxHP}</div>
+                                        <div class="stat-bar-container">
+                                            <div class="stat-bar hp-bar" data-width="${hpPercent}%" style="width: ${hpPercent}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="stat-row">
+                                        <div class="stat-name">Attack</div>
+                                        <div class="stat-value">${pokemon.attack}</div>
+                                        <div class="stat-bar-container">
+                                            <div class="stat-bar attack-bar" data-width="${attackPercent}%" style="width: ${attackPercent}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="stat-row">
+                                        <div class="stat-name">Defense</div>
+                                        <div class="stat-value">${pokemon.defense}</div>
+                                        <div class="stat-bar-container">
+                                            <div class="stat-bar defense-bar" data-width="${defensePercent}%" style="width: ${defensePercent}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="stat-row">
+                                        <div class="stat-name">Speed</div>
+                                        <div class="stat-value">${pokemon.speed}</div>
+                                        <div class="stat-bar-container">
+                                            <div class="stat-bar speed-bar" data-width="${speedPercent}%" style="width: ${speedPercent}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="stat-row">
+                                        <div class="stat-name">Sp. ${pokemon.specialDefense ? 'Atk' : 'Special'}</div>
+                                        <div class="stat-value">${pokemon.special || pokemon.specialAttack}</div>
+                                        <div class="stat-bar-container">
+                                            <div class="stat-bar spattack-bar" data-width="${specialAttackPercent}%" style="width: ${specialAttackPercent}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    ${pokemon.specialDefense ? `
+                                        <div class="stat-row">
+                                            <div class="stat-name">Sp. Def</div>
+                                            <div class="stat-value">${pokemon.specialDefense}</div>
+                                            <div class="stat-bar-container">
+                                                <div class="stat-bar spdefense-bar" data-width="${specialDefensePercent}%" style="width: ${specialDefensePercent}%"></div>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                
+                                <div class="divider"></div>
+                                
+                                <div class="moves-container">
+                                    <div class="moves-title">Moves</div>
+                                    <div class="moves-list">
+                                        ${pokemon.moves.map(move => 
+                                            move.name ? `
+                                                <div class="move-item">
+                                                    <span>${move.name}</span>
+                                                    <span>PP: ${move.pp}/${move.maxPP}</span>
+                                                </div>
+                                            ` : ''
+                                        ).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                pokemonPartyDiv.innerHTML = html;
+                
+                // Add click event listeners to play Pokémon cries and handle sprite errors
+                document.querySelectorAll('.pokedex-entry').forEach(card => {
+                    // Add click event for playing cry
+                    card.addEventListener('click', function() {
+                        const pokemonId = parseInt(this.dataset.id);
+                        const generation = parseInt(this.dataset.generation) || 1;
+                        playPokemonCry(pokemonId, generation);
+                    });
+                    
+                    // Add error handler for sprite images
+                    const spriteImg = card.querySelector('.pokemon-image');
+                    if (spriteImg) {
+                        spriteImg.onerror = spriteErrorHandler;
+                    }
+                });
+            }
+            
+            function showError(message) {
+                errorMessageDiv.textContent = message;
+                errorMessageDiv.style.display = 'block';
+                resultsDiv.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html> 
